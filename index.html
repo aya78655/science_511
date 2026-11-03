@@ -50,6 +50,10 @@
   .foot{text-align:center;font-size:13px;color:var(--sub);margin-top:20px}
   .link{background:none;border:none;color:var(--sub);text-decoration:underline;cursor:pointer;font-size:13px}
   .note{font-size:13px;color:var(--sub)}
+  .qimg{display:block;max-width:100%;max-height:360px;margin:0 auto 14px;border-radius:10px;border:1px solid var(--line);background:#fff}
+  .thumb{display:block;max-height:70px;max-width:120px;margin:4px 0;border-radius:6px;border:1px solid var(--line)}
+  .imgbox{border:2px dashed var(--line);border-radius:10px;padding:12px;text-align:center}
+  .imgbox img{max-width:100%;max-height:220px;border-radius:8px;display:block;margin:0 auto 8px}
   .badge{font-size:11px;border-radius:6px;padding:1px 6px;margin-right:4px;border:1px solid var(--line);color:var(--sub)}
 </style>
 </head>
@@ -93,6 +97,7 @@
     <div class="card">
       <div class="top"><span id="q-prog">問題 1 / 10</span><span class="tag" id="q-tag"></span></div>
       <div class="qtext" id="q-text"></div>
+      <img class="qimg hidden" id="q-img" alt="問題のイラスト">
       <div id="q-choices"></div>
       <div id="q-input" class="hidden">
         <input type="text" id="q-ans" autocomplete="off" placeholder="答えを入力">
@@ -155,6 +160,16 @@
       </div>
       <label class="f">2. 問題文</label>
       <textarea id="e-q" placeholder="例：電磁石を強くするには、コイルの巻き数をどうすればよいですか。"></textarea>
+      <label class="f">イラスト <span class="hint">（なくてもOK・画像ファイルをえらぶ）</span></label>
+      <div class="imgbox">
+        <img id="e-img-prev" class="hidden" alt="">
+        <div class="row">
+          <button class="btn gray" id="e-img-pick" style="margin-top:0">画像をえらぶ</button>
+          <button class="btn danger hidden" id="e-img-del" style="margin-top:0">画像を外す</button>
+        </div>
+        <input type="file" id="e-img-file" accept="image/*" class="hidden">
+        <p class="note" id="e-img-msg" style="margin:6px 0 0">画像は自動で小さくして保存します。</p>
+      </div>
       <label class="f">3. 解答 <span class="hint" id="e-a-hint">（正しい選択肢）</span></label>
       <input type="text" id="e-a" placeholder="例：多くする">
       <div id="e-wrong-wrap">
@@ -216,7 +231,7 @@
 
   const store = {
     get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
-    set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
+    set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } },
     del(k){ try{ localStorage.removeItem(k); }catch(e){} }
   };
 
@@ -311,6 +326,8 @@
     $("q-tag").textContent = q.cat || "";
     $("q-tag").classList.toggle("hidden", !q.cat);
     $("q-text").textContent = q.q;
+    if(q.img){ $("q-img").src = q.img; $("q-img").classList.remove("hidden"); }
+    else { $("q-img").removeAttribute("src"); $("q-img").classList.add("hidden"); }
     $("q-result").classList.add("hidden");
     $("q-score").textContent = `${run.score}/${run.i}`;
     const mode = qMode(q);
@@ -374,7 +391,7 @@
     $("r-score").textContent = `${s} / ${n}`;
     const p = s/n;
     $("r-msg").textContent = p===1 ? "全問正解！すばらしい！🎉" : p>=0.8 ? "よくできました！あと少し！" : p>=0.5 ? "まちがえた問題を見直そう。" : "ノートを見直して、もう一度挑戦しよう！";
-    $("r-wrong").innerHTML = run.wrong.map(q=>`<li>${esc(q.q)}<br>→ <span class="a">${esc(splitAns(q.a).join(" ／ "))}</span></li>`).join("");
+    $("r-wrong").innerHTML = run.wrong.map(q=>`<li>${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(splitAns(q.a).join(" ／ "))}</span></li>`).join("");
     $("r-wrong-card").classList.toggle("hidden", run.wrong.length===0);
     $("btn-retry-wrong").classList.toggle("hidden", run.wrong.length===0);
     show("result");
@@ -389,15 +406,58 @@
   $("btn-miss-play").onclick = () => startRun(shuffle(missQs()));
   $("btn-miss-list").onclick = () => {
     const qs = missQs();
-    $("m-list").innerHTML = qs.length ? qs.map(q=>`<li>${q.cat?`<span class="tag">${esc(q.cat)}</span><br>`:""}${esc(q.q)}<br>→ <span class="a">${esc(splitAns(q.a).join(" ／ "))}</span></li>`).join("") : "<li>まちがえた問題はありません。</li>";
+    $("m-list").innerHTML = qs.length ? qs.map(q=>`<li>${q.cat?`<span class="tag">${esc(q.cat)}</span><br>`:""}${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(splitAns(q.a).join(" ／ "))}</span></li>`).join("") : "<li>まちがえた問題はありません。</li>";
     show("misslist");
   };
   $("btn-miss-reset").onclick = () => { if(confirm("まちがえ帳をリセットしますか？")){ setMiss([]); renderSetup(); } };
   $("btn-mback").onclick = () => { renderSetup(); show("setup"); };
 
   // ===== 問題づくり =====
-  let eType = "choice", editingId = null;
-  function saveDraft(){ store.set(DRAFT_KEY, data); }
+  let eType = "choice", editingId = null, eImg = "";
+  function saveDraft(){
+    const ok = store.set(DRAFT_KEY, data);
+    if(!ok && data.questions.some(q=>q.img)) alert("ブラウザの保存容量がいっぱいで、下書きを自動保存できませんでした。\n「問題入りの index.html を書き出す」か「問題データ(JSON)を保存」で保存しておいてください。");
+    return ok;
+  }
+  // ===== イラスト =====
+  function setImg(src){
+    eImg = src || "";
+    $("e-img-prev").classList.toggle("hidden", !eImg);
+    if(eImg) $("e-img-prev").src = eImg; else $("e-img-prev").removeAttribute("src");
+    $("e-img-del").classList.toggle("hidden", !eImg);
+    $("e-img-pick").textContent = eImg ? "画像をかえる" : "画像をえらぶ";
+    $("e-img-msg").textContent = "画像は自動で小さくして保存します。";
+  }
+  // 横幅最大900pxに縮小。線画はPNG、重い写真などはJPEGにする
+  function shrinkImage(file){
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onerror = reject;
+      fr.onload = () => {
+        const im = new Image();
+        im.onerror = reject;
+        im.onload = () => {
+          const MAX = 900, s = Math.min(1, MAX / Math.max(im.width, im.height));
+          const w = Math.round(im.width*s), h = Math.round(im.height*s);
+          const c = document.createElement("canvas"); c.width=w; c.height=h;
+          const ctx = c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h); ctx.drawImage(im,0,0,w,h);
+          let url = c.toDataURL("image/png");
+          if(url.length > 350000) url = c.toDataURL("image/jpeg", 0.85);
+          resolve(url);
+        };
+        im.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  $("e-img-pick").onclick = () => $("e-img-file").click();
+  $("e-img-del").onclick = () => setImg("");
+  $("e-img-file").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if(!f) return;
+    $("e-img-msg").textContent = "読みこみ中…";
+    try{ setImg(await shrinkImage(f)); }
+    catch(err){ $("e-img-msg").textContent = "この画像は読みこめませんでした（JPEG・PNGなどをえらんでください）。"; }
+  };
   function setType(t){
     eType = t;
     $("e-type").querySelectorAll(".opt").forEach(b=>b.classList.toggle("on", b.dataset.v===t));
@@ -410,6 +470,7 @@
     editingId = null;
     $("e-q").value=""; $("e-a").value=""; $("e-exp").value="";
     document.querySelectorAll(".e-w").forEach(i=>i.value="");
+    setImg("");
     $("e-err").textContent="";
     $("e-form-title").textContent="➕ 問題を追加";
     $("e-save").textContent="この問題を追加";
@@ -421,7 +482,7 @@
     $("e-count").textContent = `（${data.questions.length}問）`;
     $("e-list").innerHTML = data.questions.length ? data.questions.map((q,i)=>`
       <li><span class="badge">${q.type==="choice"?"4択":"記述"}</span>${q.cat?`<span class="badge">${esc(q.cat)}</span>`:""}
-        <b>${i+1}.</b> ${esc(q.q)}<br>→ <span class="a">${esc(q.a)}</span>
+        <b>${i+1}.</b> ${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(q.a)}</span>
         ${q.type==="choice" && (q.wrong||[]).filter(Boolean).length ? `<span class="note">（×${esc(q.wrong.filter(Boolean).join("、"))}）</span>` : ""}
         <div style="text-align:right;margin-top:4px">
           <button class="mini" data-act="up" data-i="${i}">↑</button>
@@ -438,7 +499,7 @@
     else if(act==="del"){ if(!confirm("この問題を削除しますか？")) return; qs.splice(i,1); if(editingId && !qs.some(q=>q.id===editingId)) clearForm(); }
     else if(act==="edit"){
       const q = qs[i]; editingId = q.id;
-      setType(q.type); $("e-q").value=q.q; $("e-a").value=q.a; $("e-cat").value=q.cat||""; $("e-exp").value=q.exp||"";
+      setType(q.type); $("e-q").value=q.q; $("e-a").value=q.a; $("e-cat").value=q.cat||""; $("e-exp").value=q.exp||""; setImg(q.img||"");
       const ws = document.querySelectorAll(".e-w"); ws.forEach((w,k)=>w.value=(q.wrong||[])[k]||"");
       $("e-form-title").textContent=`✏️ ${i+1}問目を編集`; $("e-save").textContent="変更を保存"; $("e-cancel").classList.remove("hidden");
       $("e-form").scrollIntoView({behavior:"smooth"});
@@ -453,6 +514,7 @@
     if(!a){ $("e-err").textContent="解答を入力してください。"; return; }
     if(eType==="choice" && wrong.length===0){ $("e-err").textContent="まちがいの選択肢を1つ以上入力してください（3つ入れると4択になります）。"; return; }
     const item = { id: editingId || uid(), type:eType, cat:$("e-cat").value.trim(), q, a, wrong: eType==="choice"?wrong:[], exp:$("e-exp").value.trim() };
+    if(eImg) item.img = eImg;
     if(editingId){ const k = data.questions.findIndex(x=>x.id===editingId); data.questions[k]=item; }
     else data.questions.push(item);
     const keepCat = item.cat;
@@ -471,8 +533,8 @@
   }
   $("e-export").onclick = () => {
     const json = JSON.stringify(data, null, 1).replace(/<\//g, "<\\/");
-    const html = ORIGINAL_HTML.replace(/(<script id="quiz-data" type="application\/json">)[\s\S]*?(<\/script>)/, `$1\n${json}\n$2`)
-      .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(data.title||"理科クイズ")}</title>`);
+    const html = ORIGINAL_HTML.replace(/(<script id="quiz-data" type="application\/json">)[\s\S]*?(<\/script>)/, (m,a,b) => `${a}\n${json}\n${b}`)
+      .replace(/<title>[\s\S]*?<\/title>/, () => `<title>${esc(data.title||"理科クイズ")}</title>`);
     download("index.html", html, "text/html");
   };
   $("e-json-out").onclick = () => download("quiz-data.json", JSON.stringify(data, null, 1), "application/json");
