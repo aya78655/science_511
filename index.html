@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>理科クイズ</title>
+<style>
+  :root{
+    --bg:#f3f7f4; --card:#ffffff; --ink:#1f2a24; --sub:#5d6b63; --line:#d9e3dc;
+    --main:#2f8f5b; --main-weak:#e3f3ea; --ok:#2f8f5b; --ng:#d2463c; --ng-weak:#fdecea; --accent:#e9a23b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;line-height:1.7}
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+  .crumb{font-size:13px;color:var(--sub)}
+  h1{font-size:24px;margin:4px 0 2px}
+  .lead{color:var(--sub);font-size:14px;margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  h2{font-size:16px;margin:0 0 10px}
+  .opts{display:flex;flex-wrap:wrap;gap:8px}
+  .opt{border:2px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-size:15px;cursor:pointer;color:var(--ink)}
+  .opt.on{border-color:var(--main);background:var(--main-weak);font-weight:bold}
+  .btn{display:block;width:100%;border:none;border-radius:12px;padding:13px;font-size:17px;font-weight:bold;cursor:pointer;background:var(--main);color:#fff;margin-top:10px}
+  .btn.sub{background:#fff;color:var(--main);border:2px solid var(--main)}
+  .btn.gray{background:#fff;color:var(--sub);border:2px solid var(--line);font-weight:normal;font-size:15px}
+  .btn.danger{background:#fff;color:var(--ng);border:2px solid var(--ng);font-weight:normal;font-size:15px}
+  .btn:disabled{opacity:.4;cursor:default}
+  .row{display:flex;gap:8px}.row>*{flex:1}
+  .hidden{display:none!important}
+  .top{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--sub);margin-bottom:8px}
+  .tag{display:inline-block;background:var(--main-weak);color:var(--main);font-size:12px;padding:2px 10px;border-radius:999px;font-weight:bold}
+  .qtext{font-size:19px;font-weight:bold;margin:10px 0 14px;white-space:pre-wrap}
+  .choice{display:block;width:100%;text-align:left;border:2px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;font-size:17px;margin-bottom:8px;cursor:pointer;color:var(--ink)}
+  .choice.ok{border-color:var(--ok);background:var(--main-weak)}
+  .choice.ng{border-color:var(--ng);background:var(--ng-weak)}
+  input[type=text],textarea,select{width:100%;font-size:17px;padding:10px 12px;border:2px solid var(--line);border-radius:10px;font-family:inherit;background:#fff;color:var(--ink)}
+  textarea{min-height:70px}
+  label.f{display:block;font-size:14px;font-weight:bold;margin:12px 0 4px}
+  .hint{font-size:12px;color:var(--sub);font-weight:normal}
+  .judge{font-size:20px;font-weight:bold;margin:12px 0 4px}
+  .judge.ok{color:var(--ok)} .judge.ng{color:var(--ng)}
+  .exp{background:#fbf8ef;border-left:4px solid var(--accent);padding:10px 12px;border-radius:6px;font-size:15px;white-space:pre-wrap}
+  .score{text-align:right;font-size:14px;color:var(--sub);margin-top:8px}
+  .big{font-size:40px;font-weight:bold;text-align:center;color:var(--main)}
+  .list{list-style:none;padding:0;margin:0}
+  .list li{border-bottom:1px solid var(--line);padding:10px 0;font-size:15px}
+  .list li:last-child{border-bottom:none}
+  .list .a{color:var(--ok);font-weight:bold}
+  .mini{font-size:13px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:3px 10px;cursor:pointer;margin-left:4px;color:var(--ink)}
+  .foot{text-align:center;font-size:13px;color:var(--sub);margin-top:20px}
+  .link{background:none;border:none;color:var(--sub);text-decoration:underline;cursor:pointer;font-size:13px}
+  .note{font-size:13px;color:var(--sub)}
+  .badge{font-size:11px;border-radius:6px;padding:1px 6px;margin-right:4px;border:1px solid var(--line);color:var(--sub)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="crumb" id="crumb">理科</div>
+  <h1 id="title">理科クイズ</h1>
+  <p class="lead" id="lead"></p>
+
+  <!-- ===== 設定画面 ===== -->
+  <section id="scr-setup">
+    <div class="card">
+      <h2>① 範囲をえらぶ</h2>
+      <div class="opts" id="opt-range"></div>
+    </div>
+    <div class="card">
+      <h2>② 問題数をえらぶ</h2>
+      <div class="opts" id="opt-count"></div>
+    </div>
+    <div class="card">
+      <h2>③ 回答方法をえらぶ</h2>
+      <div class="opts" id="opt-mode"></div>
+      <p class="note" style="margin:8px 0 0">「問題のとおり」は、作るときに決めた形式（4択／記述）で出題します。</p>
+    </div>
+    <button class="btn" id="btn-start">クイズをはじめる</button>
+    <p class="note" id="empty-msg" style="text-align:center"></p>
+
+    <div class="card" style="margin-top:18px">
+      <h2>📒 まちがえ帳 <span class="hint" id="miss-count"></span></h2>
+      <button class="btn sub" id="btn-miss-play">まちがえ帳の問題に挑戦</button>
+      <div class="row">
+        <button class="btn gray" id="btn-miss-list">一覧を見る</button>
+        <button class="btn gray" id="btn-miss-reset">まちがえ帳をリセット</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== クイズ画面 ===== -->
+  <section id="scr-quiz" class="hidden">
+    <div class="card">
+      <div class="top"><span id="q-prog">問題 1 / 10</span><span class="tag" id="q-tag"></span></div>
+      <div class="qtext" id="q-text"></div>
+      <div id="q-choices"></div>
+      <div id="q-input" class="hidden">
+        <input type="text" id="q-ans" autocomplete="off" placeholder="答えを入力">
+        <button class="btn" id="btn-check">こたえあわせ</button>
+      </div>
+      <div id="q-result" class="hidden">
+        <div class="judge" id="q-judge"></div>
+        <div id="q-correct" style="margin-bottom:8px"></div>
+        <div class="exp hidden" id="q-exp"></div>
+        <button class="btn" id="btn-next">次へ</button>
+      </div>
+      <div class="score"><span id="q-score">0/0</span> 正解</div>
+    </div>
+    <button class="link" id="btn-quit">設定にもどる</button>
+  </section>
+
+  <!-- ===== 結果画面 ===== -->
+  <section id="scr-result" class="hidden">
+    <div class="card">
+      <h2>結果</h2>
+      <div class="big" id="r-score"></div>
+      <p style="text-align:center;margin:0" id="r-msg"></p>
+    </div>
+    <div class="card" id="r-wrong-card">
+      <h2>まちがえた問題</h2>
+      <ul class="list" id="r-wrong"></ul>
+    </div>
+    <button class="btn" id="btn-retry-wrong">間違えた問題だけやり直す</button>
+    <button class="btn sub" id="btn-retry">もう一度おなじ設定で挑戦</button>
+    <button class="btn gray" id="btn-back">設定にもどる</button>
+  </section>
+
+  <!-- ===== まちがえ帳一覧 ===== -->
+  <section id="scr-misslist" class="hidden">
+    <div class="card">
+      <h2>📒 まちがえ帳 一覧</h2>
+      <ul class="list" id="m-list"></ul>
+    </div>
+    <button class="btn gray" id="btn-mback">設定にもどる</button>
+  </section>
+
+  <!-- ===== 問題づくり画面 ===== -->
+  <section id="scr-editor" class="hidden">
+    <div class="card">
+      <h2>✏️ クイズの情報</h2>
+      <label class="f">タイトル</label>
+      <input type="text" id="e-title" placeholder="例：理科クイズ 〜電流と電磁石〜">
+      <label class="f">上の小さい見出し <span class="hint">例：理科・電気</span></label>
+      <input type="text" id="e-crumb">
+      <label class="f">説明文 <span class="hint">例：予習シリーズ 第8回 の復習問題から</span></label>
+      <input type="text" id="e-lead">
+    </div>
+
+    <div class="card" id="e-form">
+      <h2 id="e-form-title">➕ 問題を追加</h2>
+      <label class="f">1. 形式</label>
+      <div class="opts" id="e-type">
+        <button class="opt on" data-v="choice">選択問題（4択）</button>
+        <button class="opt" data-v="text">記述問題</button>
+      </div>
+      <label class="f">2. 問題文</label>
+      <textarea id="e-q" placeholder="例：電磁石を強くするには、コイルの巻き数をどうすればよいですか。"></textarea>
+      <label class="f">3. 解答 <span class="hint" id="e-a-hint">（正しい選択肢）</span></label>
+      <input type="text" id="e-a" placeholder="例：多くする">
+      <div id="e-wrong-wrap">
+        <label class="f">4. まちがいの選択肢（3つ）</label>
+        <input type="text" class="e-w" placeholder="まちがい①" style="margin-bottom:6px">
+        <input type="text" class="e-w" placeholder="まちがい②" style="margin-bottom:6px">
+        <input type="text" class="e-w" placeholder="まちがい③">
+      </div>
+      <label class="f">範囲（単元名） <span class="hint">同じ名前にした問題がまとまって「① 範囲」に出ます</span></label>
+      <input type="text" id="e-cat" list="e-cat-list" placeholder="例：電磁石">
+      <datalist id="e-cat-list"></datalist>
+      <label class="f">解説 <span class="hint">（なくてもOK）</span></label>
+      <textarea id="e-exp"></textarea>
+      <p class="note" id="e-err" style="color:var(--ng)"></p>
+      <button class="btn" id="e-save">この問題を追加</button>
+      <button class="btn gray hidden" id="e-cancel">編集をやめる</button>
+    </div>
+
+    <div class="card">
+      <h2>📋 問題一覧 <span class="hint" id="e-count"></span></h2>
+      <ul class="list" id="e-list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>💾 保存・公開</h2>
+      <p class="note" style="margin-top:0">入力した問題はこのブラウザに自動で保存されます。<br>GitHub Pages で公開するときは、下のボタンで<b>問題入りの index.html</b> を書き出し、今の index.html と差しかえてください。</p>
+      <button class="btn" id="e-export">問題入りの index.html を書き出す</button>
+      <div class="row">
+        <button class="btn gray" id="e-json-out">問題データ(JSON)を保存</button>
+        <button class="btn gray" id="e-json-in">JSONを読みこむ</button>
+      </div>
+      <input type="file" id="e-file" accept=".json,application/json" class="hidden">
+      <button class="btn danger" id="e-discard">下書きを消して公開版にもどす</button>
+    </div>
+    <button class="btn sub" id="e-done">クイズ画面へもどる</button>
+  </section>
+
+  <div class="foot">
+    <div id="foot-note">全て自分でノートを見直して確認しよう ✎</div>
+    <button class="link" id="btn-editor" style="margin-top:6px">問題をつくる・編集する</button>
+  </div>
+</div>
+
+<!-- ▼ 問題データ（「問題入りの index.html を書き出す」でここが書きかわります） -->
+<script id="quiz-data" type="application/json">
+{"title":"理科クイズ","crumb":"理科","lead":"","questions":[]}
+</script>
+<!-- ▲ 問題データ -->
+
+<script>
+(function(){
+  "use strict";
+  // ページ書き出し用に、読みこみ時点のHTMLを保存
+  const ORIGINAL_HTML = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+
+  const $ = id => document.getElementById(id);
+  const PUBLISHED = JSON.parse($("quiz-data").textContent);
+  const DRAFT_KEY = "rika-quiz-draft:" + location.pathname;
+
+  const store = {
+    get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
+    set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
+    del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+  };
+
+  let data = store.get(DRAFT_KEY) || clone(PUBLISHED);
+  if(!Array.isArray(data.questions)) data.questions = [];
+  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+  function missKey(){ return "rika-quiz-miss:" + location.pathname + ":" + (data.title||""); }
+  function getMiss(){ return store.get(missKey()) || []; }
+  function setMiss(a){ store.set(missKey(), a); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+  function uid(){ return "q" + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+  // ===== 画面切りかえ =====
+  const screens = ["setup","quiz","result","misslist","editor"];
+  function show(name){
+    screens.forEach(s => $("scr-"+s).classList.toggle("hidden", s!==name));
+    $("btn-editor").classList.toggle("hidden", name==="editor" || name==="quiz");
+    window.scrollTo(0,0);
+  }
+
+  function renderHeader(){
+    $("title").textContent = data.title || "理科クイズ";
+    $("crumb").textContent = data.crumb || "理科";
+    $("lead").textContent = data.lead || "";
+    $("lead").classList.toggle("hidden", !data.lead);
+    document.title = data.title || "理科クイズ";
+  }
+
+  // ===== 設定画面 =====
+  const setting = { range:"__all", count:"10", mode:"asis" };
+  function categories(){
+    const seen=[]; data.questions.forEach(q=>{ const c=(q.cat||"").trim(); if(c && !seen.includes(c)) seen.push(c); }); return seen;
+  }
+  function optButtons(el, items, key){
+    el.innerHTML = items.map(([v,l]) => `<button class="opt${setting[key]===v?" on":""}" data-v="${esc(v)}">${esc(l)}</button>`).join("");
+    el.querySelectorAll(".opt").forEach(b => b.onclick = () => { setting[key]=b.dataset.v; renderSetup(); });
+  }
+  function renderSetup(){
+    renderHeader();
+    const cats = categories();
+    if(setting.range!=="__all" && !cats.includes(setting.range)) setting.range="__all";
+    const countIn = c => data.questions.filter(q=>(q.cat||"").trim()===c).length;
+    optButtons($("opt-range"), [["__all",`ぜんぶ（${data.questions.length}問）`]].concat(cats.map(c=>[c,`${c}（${countIn(c)}問）`])), "range");
+    optButtons($("opt-count"), [["10","10問"],["20","20問"],["all","全問"]], "count");
+    optButtons($("opt-mode"), [["asis","問題のとおり"],["choice","4択（選択式）"],["text","記述式（入力）"]], "mode");
+    const none = data.questions.length===0;
+    $("btn-start").disabled = none;
+    $("empty-msg").textContent = none ? "まだ問題がありません。下の「問題をつくる・編集する」から入力してください。" : "";
+    const m = getMiss().filter(id => data.questions.some(q=>q.id===id));
+    $("miss-count").textContent = `（${m.length}問）`;
+    $("btn-miss-play").disabled = m.length===0;
+  }
+
+  // ===== クイズ =====
+  let run = null; // {list, i, score, wrong, mode, answered}
+  function pool(){
+    let qs = data.questions;
+    if(setting.range!=="__all") qs = qs.filter(q=>(q.cat||"").trim()===setting.range);
+    qs = shuffle(qs);
+    if(setting.count!=="all") qs = qs.slice(0, Number(setting.count));
+    return qs;
+  }
+  function startRun(list){
+    if(!list.length) return;
+    run = { list, i:0, score:0, wrong:[], answered:false, last:list };
+    show("quiz"); renderQ();
+  }
+  // 4択にできるか（選択肢をつくれるか）
+  function choicesFor(q){
+    let wrong = (q.wrong||[]).map(s=>s.trim()).filter(Boolean);
+    if(wrong.length < 3){
+      // ほかの問題の答えでおぎなう（同じ範囲を優先）
+      const others = shuffle(data.questions.filter(o=>o.id!==q.id)).sort((a,b)=>((b.cat===q.cat)-(a.cat===q.cat)))
+        .map(o=>firstAnswer(o.a)).filter(s=>s && !acceptList(q.a).includes(norm(s)));
+      for(const s of others){ if(wrong.length>=3) break; if(!wrong.includes(s)) wrong.push(s); }
+    }
+    return shuffle([firstAnswer(q.a)].concat(wrong.slice(0,3)));
+  }
+  function qMode(q){
+    const m = setting.mode==="asis" ? q.type : setting.mode;
+    if(m==="choice"){
+      const ok = (q.wrong||[]).filter(s=>s.trim()).length>=1 || data.questions.length>=4;
+      return ok ? "choice" : "text";
+    }
+    return "text";
+  }
+  function renderQ(){
+    const q = run.list[run.i];
+    run.answered = false;
+    $("q-prog").textContent = `問題 ${run.i+1} / ${run.list.length}`;
+    $("q-tag").textContent = q.cat || "";
+    $("q-tag").classList.toggle("hidden", !q.cat);
+    $("q-text").textContent = q.q;
+    $("q-result").classList.add("hidden");
+    $("q-score").textContent = `${run.score}/${run.i}`;
+    const mode = qMode(q);
+    if(mode==="choice"){
+      $("q-input").classList.add("hidden");
+      const box = $("q-choices"); box.classList.remove("hidden");
+      box.innerHTML = choicesFor(q).map(c=>`<button class="choice">${esc(c)}</button>`).join("");
+      box.querySelectorAll(".choice").forEach(b => b.onclick = () => answer(b.textContent, b));
+    }else{
+      $("q-choices").classList.add("hidden"); $("q-choices").innerHTML="";
+      $("q-input").classList.remove("hidden");
+      $("q-ans").value=""; $("btn-check").disabled=false; $("q-ans").disabled=false;
+      setTimeout(()=>$("q-ans").focus(), 50);
+    }
+  }
+  // 記述の答え合わせ：全角半角・ひらがなカタカナ・空白の違いを気にしない
+  function norm(s){
+    return String(s||"").normalize("NFKC").trim().toLowerCase()
+      .replace(/[\s　]+/g,"").replace(/[ァ-ヶ]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60))
+      .replace(/[。、．，.,]$/,"");
+  }
+  function splitAns(a){ return String(a||"").split(/[\/／|｜]/).map(s=>s.trim()).filter(Boolean); }
+  function firstAnswer(a){ return splitAns(a)[0] || ""; }
+  function acceptList(a){ return splitAns(a).map(norm); }
+  function answer(given, btn){
+    if(run.answered) return;
+    run.answered = true;
+    const q = run.list[run.i];
+    const ok = acceptList(q.a).includes(norm(given));
+    if(btn){
+      $("q-choices").querySelectorAll(".choice").forEach(b=>{
+        b.disabled = true;
+        if(acceptList(q.a).includes(norm(b.textContent))) b.classList.add("ok");
+      });
+      if(!ok) btn.classList.add("ng");
+    }else{
+      $("btn-check").disabled = true; $("q-ans").disabled = true;
+    }
+    let miss = getMiss();
+    if(ok){ run.score++; miss = miss.filter(id=>id!==q.id); }
+    else { run.wrong.push(q); if(!miss.includes(q.id)) miss.push(q.id); }
+    setMiss(miss);
+    $("q-judge").textContent = ok ? "⭕ 正解！" : "❌ ざんねん…";
+    $("q-judge").className = "judge " + (ok?"ok":"ng");
+    const all = splitAns(q.a);
+    $("q-correct").innerHTML = ok && btn ? "" : `答え：<b>${esc(all.join(" ／ "))}</b>`;
+    $("q-exp").textContent = q.exp || "";
+    $("q-exp").classList.toggle("hidden", !q.exp);
+    $("btn-next").textContent = run.i+1 < run.list.length ? "次へ" : "結果を見る";
+    $("q-result").classList.remove("hidden");
+    $("q-score").textContent = `${run.score}/${run.i+1}`;
+    $("btn-next").focus();
+  }
+  $("btn-check").onclick = () => { if($("q-ans").value.trim()) answer($("q-ans").value, null); };
+  $("q-ans").addEventListener("keydown", e => { if(e.key==="Enter" && !e.isComposing){ e.preventDefault(); $("btn-check").click(); } });
+  $("btn-next").onclick = () => { run.i++; if(run.i < run.list.length) renderQ(); else showResult(); };
+  $("btn-quit").onclick = () => { renderSetup(); show("setup"); };
+
+  function showResult(){
+    const n = run.list.length, s = run.score;
+    $("r-score").textContent = `${s} / ${n}`;
+    const p = s/n;
+    $("r-msg").textContent = p===1 ? "全問正解！すばらしい！🎉" : p>=0.8 ? "よくできました！あと少し！" : p>=0.5 ? "まちがえた問題を見直そう。" : "ノートを見直して、もう一度挑戦しよう！";
+    $("r-wrong").innerHTML = run.wrong.map(q=>`<li>${esc(q.q)}<br>→ <span class="a">${esc(splitAns(q.a).join(" ／ "))}</span></li>`).join("");
+    $("r-wrong-card").classList.toggle("hidden", run.wrong.length===0);
+    $("btn-retry-wrong").classList.toggle("hidden", run.wrong.length===0);
+    show("result");
+  }
+  $("btn-retry-wrong").onclick = () => startRun(shuffle(run.wrong));
+  $("btn-retry").onclick = () => startRun(pool());
+  $("btn-back").onclick = () => { renderSetup(); show("setup"); };
+  $("btn-start").onclick = () => startRun(pool());
+
+  // ===== まちがえ帳 =====
+  function missQs(){ const m=getMiss(); return data.questions.filter(q=>m.includes(q.id)); }
+  $("btn-miss-play").onclick = () => startRun(shuffle(missQs()));
+  $("btn-miss-list").onclick = () => {
+    const qs = missQs();
+    $("m-list").innerHTML = qs.length ? qs.map(q=>`<li>${q.cat?`<span class="tag">${esc(q.cat)}</span><br>`:""}${esc(q.q)}<br>→ <span class="a">${esc(splitAns(q.a).join(" ／ "))}</span></li>`).join("") : "<li>まちがえた問題はありません。</li>";
+    show("misslist");
+  };
+  $("btn-miss-reset").onclick = () => { if(confirm("まちがえ帳をリセットしますか？")){ setMiss([]); renderSetup(); } };
+  $("btn-mback").onclick = () => { renderSetup(); show("setup"); };
+
+  // ===== 問題づくり =====
+  let eType = "choice", editingId = null;
+  function saveDraft(){ store.set(DRAFT_KEY, data); }
+  function setType(t){
+    eType = t;
+    $("e-type").querySelectorAll(".opt").forEach(b=>b.classList.toggle("on", b.dataset.v===t));
+    $("e-wrong-wrap").classList.toggle("hidden", t!=="choice");
+    $("e-a-hint").textContent = t==="choice" ? "（正しい選択肢）" : "（別の答えも正解にするときは「/」で区切る　例：でんじしゃく/電磁石）";
+  }
+  $("e-type").querySelectorAll(".opt").forEach(b => b.onclick = () => setType(b.dataset.v));
+
+  function clearForm(){
+    editingId = null;
+    $("e-q").value=""; $("e-a").value=""; $("e-exp").value="";
+    document.querySelectorAll(".e-w").forEach(i=>i.value="");
+    $("e-err").textContent="";
+    $("e-form-title").textContent="➕ 問題を追加";
+    $("e-save").textContent="この問題を追加";
+    $("e-cancel").classList.add("hidden");
+  }
+  function renderEditor(){
+    $("e-title").value = data.title||""; $("e-crumb").value = data.crumb||""; $("e-lead").value = data.lead||"";
+    $("e-cat-list").innerHTML = categories().map(c=>`<option value="${esc(c)}">`).join("");
+    $("e-count").textContent = `（${data.questions.length}問）`;
+    $("e-list").innerHTML = data.questions.length ? data.questions.map((q,i)=>`
+      <li><span class="badge">${q.type==="choice"?"4択":"記述"}</span>${q.cat?`<span class="badge">${esc(q.cat)}</span>`:""}
+        <b>${i+1}.</b> ${esc(q.q)}<br>→ <span class="a">${esc(q.a)}</span>
+        ${q.type==="choice" && (q.wrong||[]).filter(Boolean).length ? `<span class="note">（×${esc(q.wrong.filter(Boolean).join("、"))}）</span>` : ""}
+        <div style="text-align:right;margin-top:4px">
+          <button class="mini" data-act="up" data-i="${i}">↑</button>
+          <button class="mini" data-act="down" data-i="${i}">↓</button>
+          <button class="mini" data-act="edit" data-i="${i}">編集</button>
+          <button class="mini" data-act="del" data-i="${i}" style="color:var(--ng)">削除</button>
+        </div></li>`).join("") : "<li class='note'>まだ問題がありません。</li>";
+    $("e-list").querySelectorAll(".mini").forEach(b => b.onclick = () => listAction(b.dataset.act, Number(b.dataset.i)));
+  }
+  function listAction(act, i){
+    const qs = data.questions;
+    if(act==="up" && i>0){ [qs[i-1],qs[i]]=[qs[i],qs[i-1]]; }
+    else if(act==="down" && i<qs.length-1){ [qs[i+1],qs[i]]=[qs[i],qs[i+1]]; }
+    else if(act==="del"){ if(!confirm("この問題を削除しますか？")) return; qs.splice(i,1); if(editingId && !qs.some(q=>q.id===editingId)) clearForm(); }
+    else if(act==="edit"){
+      const q = qs[i]; editingId = q.id;
+      setType(q.type); $("e-q").value=q.q; $("e-a").value=q.a; $("e-cat").value=q.cat||""; $("e-exp").value=q.exp||"";
+      const ws = document.querySelectorAll(".e-w"); ws.forEach((w,k)=>w.value=(q.wrong||[])[k]||"");
+      $("e-form-title").textContent=`✏️ ${i+1}問目を編集`; $("e-save").textContent="変更を保存"; $("e-cancel").classList.remove("hidden");
+      $("e-form").scrollIntoView({behavior:"smooth"});
+      return;
+    }
+    saveDraft(); renderEditor();
+  }
+  $("e-save").onclick = () => {
+    const q = $("e-q").value.trim(), a = $("e-a").value.trim();
+    const wrong = Array.from(document.querySelectorAll(".e-w")).map(i=>i.value.trim()).filter(Boolean);
+    if(!q){ $("e-err").textContent="問題文を入力してください。"; return; }
+    if(!a){ $("e-err").textContent="解答を入力してください。"; return; }
+    if(eType==="choice" && wrong.length===0){ $("e-err").textContent="まちがいの選択肢を1つ以上入力してください（3つ入れると4択になります）。"; return; }
+    const item = { id: editingId || uid(), type:eType, cat:$("e-cat").value.trim(), q, a, wrong: eType==="choice"?wrong:[], exp:$("e-exp").value.trim() };
+    if(editingId){ const k = data.questions.findIndex(x=>x.id===editingId); data.questions[k]=item; }
+    else data.questions.push(item);
+    const keepCat = item.cat;
+    saveDraft(); clearForm(); $("e-cat").value = keepCat; renderEditor();
+    $("e-q").focus();
+  };
+  $("e-cancel").onclick = () => { clearForm(); };
+  ["e-title","e-crumb","e-lead"].forEach(id => $(id).addEventListener("input", () => {
+    data.title=$("e-title").value; data.crumb=$("e-crumb").value; data.lead=$("e-lead").value; saveDraft(); renderHeader();
+  }));
+
+  function download(name, text, type){
+    const blob = new Blob([text], {type});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  $("e-export").onclick = () => {
+    const json = JSON.stringify(data, null, 1).replace(/<\//g, "<\\/");
+    const html = ORIGINAL_HTML.replace(/(<script id="quiz-data" type="application\/json">)[\s\S]*?(<\/script>)/, `$1\n${json}\n$2`)
+      .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(data.title||"理科クイズ")}</title>`);
+    download("index.html", html, "text/html");
+  };
+  $("e-json-out").onclick = () => download("quiz-data.json", JSON.stringify(data, null, 1), "application/json");
+  $("e-json-in").onclick = () => $("e-file").click();
+  $("e-file").onchange = e => {
+    const f = e.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try{
+        const d = JSON.parse(r.result);
+        if(!Array.isArray(d.questions)) throw 0;
+        d.questions.forEach(q=>{ if(!q.id) q.id=uid(); if(!q.type) q.type="text"; });
+        data = d; saveDraft(); renderEditor(); renderHeader(); alert(`${d.questions.length}問を読みこみました。`);
+      }catch(err){ alert("読みこめませんでした。このクイズで保存したJSONファイルを選んでください。"); }
+      e.target.value="";
+    };
+    r.readAsText(f);
+  };
+  $("e-discard").onclick = () => {
+    if(!confirm("このブラウザの下書きを消して、公開されている問題にもどしますか？")) return;
+    store.del(DRAFT_KEY); data = clone(PUBLISHED); clearForm(); renderEditor(); renderHeader();
+  };
+  $("btn-editor").onclick = () => { clearForm(); setType("choice"); renderEditor(); show("editor"); };
+  $("e-done").onclick = () => { renderSetup(); show("setup"); };
+
+  renderSetup(); show("setup");
+})();
+</script>
+</body>
+</html>
