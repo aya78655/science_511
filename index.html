@@ -53,6 +53,9 @@
   .qimg{display:block;max-width:100%;max-height:360px;margin:0 auto 14px;border-radius:10px;border:1px solid var(--line);background:#fff}
   .thumb{display:block;max-height:70px;max-width:120px;margin:4px 0;border-radius:6px;border:1px solid var(--line)}
   .imgbox{border:2px dashed var(--line);border-radius:10px;padding:12px;text-align:center}
+  .imgbox{transition:background .15s,border-color .15s}
+  .imgbox.drag{border-color:var(--main);background:var(--main-weak)}
+  .droptext{font-weight:bold;color:var(--sub)}
   .imgbox img{max-width:100%;max-height:220px;border-radius:8px;display:block;margin:0 auto 8px}
   .badge{font-size:11px;border-radius:6px;padding:1px 6px;margin-right:4px;border:1px solid var(--line);color:var(--sub)}
 </style>
@@ -161,7 +164,8 @@
       <label class="f">2. 問題文</label>
       <textarea id="e-q" placeholder="例：電磁石を強くするには、コイルの巻き数をどうすればよいですか。"></textarea>
       <label class="f">イラスト <span class="hint">（なくてもOK・画像ファイルをえらぶ）</span></label>
-      <div class="imgbox">
+      <div class="imgbox" id="e-imgbox">
+        <p class="droptext" style="margin:0 0 8px">ここに画像をドラッグ＆ドロップ<br><span class="note">または下のボタンでえらぶ／コピーした画像は ⌘+V（Ctrl+V）で貼りつけ</span></p>
         <img id="e-img-prev" class="hidden" alt="">
         <div class="row">
           <button class="btn gray" id="e-img-pick" style="margin-top:0">画像をえらぶ</button>
@@ -452,12 +456,32 @@
   }
   $("e-img-pick").onclick = () => $("e-img-file").click();
   $("e-img-del").onclick = () => setImg("");
-  $("e-img-file").onchange = async e => {
-    const f = e.target.files[0]; e.target.value = ""; if(!f) return;
+  async function loadImgFile(f){
+    if(!f) return;
+    if(f.type && !f.type.startsWith("image/")){ $("e-img-msg").textContent = "画像ファイル（JPEG・PNGなど）を入れてください。"; return; }
     $("e-img-msg").textContent = "読みこみ中…";
     try{ setImg(await shrinkImage(f)); }
     catch(err){ $("e-img-msg").textContent = "この画像は読みこめませんでした（JPEG・PNGなどをえらんでください）。"; }
-  };
+  }
+  $("e-img-file").onchange = e => { const f = e.target.files[0]; e.target.value = ""; loadImgFile(f); };
+  // ドラッグ＆ドロップ
+  const box = $("e-imgbox");
+  ["dragenter","dragover"].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.add("drag"); }));
+  ["dragleave","dragend"].forEach(ev => box.addEventListener(ev, e => { if(!box.contains(e.relatedTarget)) box.classList.remove("drag"); }));
+  box.addEventListener("drop", e => {
+    e.preventDefault(); box.classList.remove("drag");
+    const f = Array.from(e.dataTransfer.files||[]).find(x => x.type.startsWith("image/")) || (e.dataTransfer.files||[])[0];
+    if(f) loadImgFile(f);
+    else $("e-img-msg").textContent = "画像ファイルをパソコンのフォルダからドラッグしてください。";
+  });
+  // 枠の外に落としてもページが画像に切りかわらないようにする
+  ["dragover","drop"].forEach(ev => window.addEventListener(ev, e => { if(!box.contains(e.target)) e.preventDefault(); }));
+  // コピーした画像の貼りつけ（問題づくり画面で Ctrl+V / ⌘+V）
+  document.addEventListener("paste", e => {
+    if($("scr-editor").classList.contains("hidden")) return;
+    const item = Array.from((e.clipboardData||{}).items||[]).find(i => i.type.startsWith("image/"));
+    if(item){ e.preventDefault(); loadImgFile(item.getAsFile()); }
+  });
   function setType(t){
     eType = t;
     $("e-type").querySelectorAll(".opt").forEach(b=>b.classList.toggle("on", b.dataset.v===t));
