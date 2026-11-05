@@ -80,7 +80,7 @@
     <div class="card">
       <h2>③ 回答方法をえらぶ</h2>
       <div class="opts" id="opt-mode"></div>
-      <p class="note" style="margin:8px 0 0">「問題のとおり」は、作るときに決めた形式（4択／記述）で出題します。</p>
+      <p class="note" style="margin:8px 0 0">「問題のとおり」は、作るときに決めた形式（3択・4択／記述）で出題します。「選択式」は記述問題も4択にして出題します。</p>
     </div>
     <button class="btn" id="btn-start">クイズをはじめる</button>
     <p class="note" id="empty-msg" style="text-align:center"></p>
@@ -158,7 +158,7 @@
       <h2 id="e-form-title">➕ 問題を追加</h2>
       <label class="f">1. 形式</label>
       <div class="opts" id="e-type">
-        <button class="opt on" data-v="choice">選択問題（4択）</button>
+        <button class="opt on" data-v="choice">選択問題</button>
         <button class="opt" data-v="text">記述問題</button>
       </div>
       <label class="f">2. 問題文</label>
@@ -177,10 +177,15 @@
       <label class="f">3. 解答 <span class="hint" id="e-a-hint">（正しい選択肢）</span></label>
       <input type="text" id="e-a" placeholder="例：多くする">
       <div id="e-wrong-wrap">
-        <label class="f">4. まちがいの選択肢（3つ）</label>
+        <label class="f">4. 選択肢の数</label>
+        <div class="opts" id="e-n">
+          <button class="opt" data-v="3">3択</button>
+          <button class="opt on" data-v="4">4択</button>
+        </div>
+        <label class="f" id="e-w-label">5. まちがいの選択肢（3つ）</label>
         <input type="text" class="e-w" placeholder="まちがい①" style="margin-bottom:6px">
         <input type="text" class="e-w" placeholder="まちがい②" style="margin-bottom:6px">
-        <input type="text" class="e-w" placeholder="まちがい③">
+        <input type="text" class="e-w" id="e-w3" placeholder="まちがい③">
       </div>
       <label class="f">範囲（単元名） <span class="hint">同じ名前にした問題がまとまって「① 範囲」に出ます</span></label>
       <input type="text" id="e-cat" list="e-cat-list" placeholder="例：電磁石">
@@ -339,7 +344,7 @@
     const countIn = c => data.questions.filter(q=>(q.cat||"").trim()===c).length;
     optButtons($("opt-range"), [["__all",`ぜんぶ（${data.questions.length}問）`]].concat(cats.map(c=>[c,`${c}（${countIn(c)}問）`])), "range");
     optButtons($("opt-count"), [["10","10問"],["20","20問"],["all","全問"]], "count");
-    optButtons($("opt-mode"), [["asis","問題のとおり"],["choice","4択（選択式）"],["text","記述式（入力）"]], "mode");
+    optButtons($("opt-mode"), [["asis","問題のとおり"],["choice","選択式"],["text","記述式（入力）"]], "mode");
     const none = data.questions.length===0;
     $("btn-start").disabled = none;
     $("empty-msg").textContent = none ? "まだ問題がありません。下の「問題をつくる・編集する」から入力してください。" : "";
@@ -362,16 +367,17 @@
     run = { list, i:0, score:0, wrong:[], answered:false, last:list };
     show("quiz"); renderQ();
   }
-  // 4択にできるか（選択肢をつくれるか）
+  // 選択肢をつくる（3択 or 4択）。足りないまちがいはほかの問題の答えでおぎなう
   function choicesFor(q){
+    const need = (q.type==="choice" && q.n===3) ? 2 : 3;
     let wrong = (q.wrong||[]).map(s=>s.trim()).filter(Boolean);
-    if(wrong.length < 3){
+    if(wrong.length < need){
       // ほかの問題の答えでおぎなう（同じ範囲を優先）
       const others = shuffle(data.questions.filter(o=>o.id!==q.id)).sort((a,b)=>((b.cat===q.cat)-(a.cat===q.cat)))
         .map(o=>firstAnswer(o.a)).filter(s=>s && !acceptList(q.a).includes(norm(s)));
-      for(const s of others){ if(wrong.length>=3) break; if(!wrong.includes(s)) wrong.push(s); }
+      for(const s of others){ if(wrong.length>=need) break; if(!wrong.includes(s)) wrong.push(s); }
     }
-    return shuffle([firstAnswer(q.a)].concat(wrong.slice(0,3)));
+    return shuffle([firstAnswer(q.a)].concat(wrong.slice(0,need)));
   }
   function qMode(q){
     const m = setting.mode==="asis" ? q.type : setting.mode;
@@ -475,7 +481,14 @@
   $("btn-mback").onclick = () => { renderSetup(); show("setup"); };
 
   // ===== 問題づくり =====
-  let eType = "choice", editingId = null, eImg = "";
+  let eType = "choice", editingId = null, eImg = "", eN = 4;
+  function setN(n){
+    eN = n === 3 ? 3 : 4;
+    $("e-n").querySelectorAll(".opt").forEach(b=>b.classList.toggle("on", Number(b.dataset.v)===eN));
+    $("e-w3").classList.toggle("hidden", eN===3);
+    $("e-w-label").textContent = `5. まちがいの選択肢（${eN-1}つ）`;
+  }
+  $("e-n").querySelectorAll(".opt").forEach(b => b.onclick = () => setN(Number(b.dataset.v)));
   let saveChain = Promise.resolve(), saveWarned = false, lastSave = null; // null / "ok" / "ng"
   const LOCAL_NOTE = "このブラウザでは大容量の保存場所が使えないため、小容量の保存場所を使っています。Chrome で開くか、GitHub Pages のURL（https://〜）で開くと大容量で保存できます。";
   function showStatus(){
@@ -588,7 +601,7 @@
     $("e-cat-list").innerHTML = categories().map(c=>`<option value="${esc(c)}">`).join("");
     $("e-count").textContent = `（${data.questions.length}問）`;
     $("e-list").innerHTML = data.questions.length ? data.questions.map((q,i)=>`
-      <li><span class="badge">${q.type==="choice"?"4択":"記述"}</span>${q.cat?`<span class="badge">${esc(q.cat)}</span>`:""}
+      <li><span class="badge">${q.type==="choice"?(q.n===3?"3択":"4択"):"記述"}</span>${q.cat?`<span class="badge">${esc(q.cat)}</span>`:""}
         <b>${i+1}.</b> ${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(q.a)}</span>
         ${q.type==="choice" && (q.wrong||[]).filter(Boolean).length ? `<span class="note">（×${esc(q.wrong.filter(Boolean).join("、"))}）</span>` : ""}
         <div style="text-align:right;margin-top:4px">
@@ -606,7 +619,7 @@
     else if(act==="del"){ if(!confirm("この問題を削除しますか？")) return; qs.splice(i,1); if(editingId && !qs.some(q=>q.id===editingId)) clearForm(); }
     else if(act==="edit"){
       const q = qs[i]; editingId = q.id;
-      setType(q.type); $("e-q").value=q.q; $("e-a").value=q.a; $("e-cat").value=q.cat||""; $("e-exp").value=q.exp||""; setImg(q.img||"");
+      setType(q.type); $("e-q").value=q.q; $("e-a").value=q.a; $("e-cat").value=q.cat||""; $("e-exp").value=q.exp||""; setImg(q.img||""); setN(q.type==="choice" ? (q.n||4) : eN);
       const ws = document.querySelectorAll(".e-w"); ws.forEach((w,k)=>w.value=(q.wrong||[])[k]||"");
       $("e-form-title").textContent=`✏️ ${i+1}問目を編集`; $("e-save").textContent="変更を保存"; $("e-cancel").classList.remove("hidden");
       $("e-form").scrollIntoView({behavior:"smooth"});
@@ -616,11 +629,11 @@
   }
   $("e-save").onclick = () => {
     const q = $("e-q").value.trim(), a = $("e-a").value.trim();
-    const wrong = Array.from(document.querySelectorAll(".e-w")).map(i=>i.value.trim()).filter(Boolean);
+    const wrong = Array.from(document.querySelectorAll(".e-w")).slice(0, eN-1).map(i=>i.value.trim()).filter(Boolean);
     if(!q){ $("e-err").textContent="問題文を入力してください。"; return; }
     if(!a){ $("e-err").textContent="解答を入力してください。"; return; }
-    if(eType==="choice" && wrong.length===0){ $("e-err").textContent="まちがいの選択肢を1つ以上入力してください（3つ入れると4択になります）。"; return; }
-    const item = { id: editingId || uid(), type:eType, cat:$("e-cat").value.trim(), q, a, wrong: eType==="choice"?wrong:[], exp:$("e-exp").value.trim() };
+    if(eType==="choice" && wrong.length===0){ $("e-err").textContent=`まちがいの選択肢を1つ以上入力してください（${eN-1}つ入れると${eN}択になります）。`; return; }
+    const item = { id: editingId || uid(), type:eType, cat:$("e-cat").value.trim(), q, a, wrong: eType==="choice"?wrong:[], n: eType==="choice"?eN:undefined, exp:$("e-exp").value.trim() };
     if(eImg) item.img = eImg;
     if(editingId){ const k = data.questions.findIndex(x=>x.id===editingId); data.questions[k]=item; }
     else data.questions.push(item);
