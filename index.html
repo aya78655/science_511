@@ -33,6 +33,15 @@
   .choice{display:block;width:100%;text-align:left;border:2px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;font-size:17px;margin-bottom:8px;cursor:pointer;color:var(--ink)}
   .choice.ok{border-color:var(--ok);background:var(--main-weak)}
   .choice.ng{border-color:var(--ng);background:var(--ng-weak)}
+  .choice.multi{padding-left:46px;position:relative}
+  .choice.multi::before{content:"";position:absolute;left:14px;top:50%;width:20px;height:20px;margin-top:-10px;border:2px solid var(--sub);border-radius:5px;background:#fff}
+  .choice.multi.sel{border-color:var(--main);background:var(--main-weak)}
+  .choice.multi.sel::before{content:"✓";color:#fff;background:var(--main);border-color:var(--main);font-size:15px;line-height:20px;text-align:center;font-weight:bold}
+  .choice.multi.ng{border-color:var(--ng);background:var(--ng-weak)}
+  .choice.multi.ng::before{background:var(--ng);border-color:var(--ng)}
+  .choice.miss{border-color:var(--ok);border-style:dashed;background:#fff}
+  .choice .mark{float:right;font-size:13px;font-weight:bold}
+  .multi-tag{display:inline-block;background:#fdf1dc;color:#9a6512;font-size:13px;font-weight:bold;padding:2px 10px;border-radius:6px;margin-bottom:8px}
   input[type=text],textarea,select{width:100%;font-size:17px;padding:10px 12px;border:2px solid var(--line);border-radius:10px;font-family:inherit;background:#fff;color:var(--ink)}
   textarea{min-height:70px}
   label.f{display:block;font-size:14px;font-weight:bold;margin:12px 0 4px}
@@ -80,7 +89,7 @@
     <div class="card">
       <h2>③ 回答方法をえらぶ</h2>
       <div class="opts" id="opt-mode"></div>
-      <p class="note" style="margin:8px 0 0">「問題のとおり」は、作るときに決めた形式（3択・4択／記述）で出題します。「選択式」は記述問題も4択にして出題します。</p>
+      <p class="note" style="margin:8px 0 0">「問題のとおり」は、作るときに決めた形式（3択・4択／記述）で出題します。「選択式」は記述問題も4択にして出題します。「全て選びなさい」の問題は、いつも選んで答える形で出題します。</p>
     </div>
     <button class="btn" id="btn-start">クイズをはじめる</button>
     <p class="note" id="empty-msg" style="text-align:center"></p>
@@ -101,7 +110,9 @@
       <div class="top"><span id="q-prog">問題 1 / 10</span><span class="tag" id="q-tag"></span></div>
       <div class="qtext" id="q-text"></div>
       <img class="qimg hidden" id="q-img" alt="問題のイラスト">
+      <div id="q-multi-tag" class="multi-tag hidden">✅ あてはまるものを すべて 選びなさい</div>
       <div id="q-choices"></div>
+      <button class="btn hidden" id="btn-mcheck">こたえあわせ</button>
       <div id="q-input" class="hidden">
         <input type="text" id="q-ans" autocomplete="off" placeholder="答えを入力">
         <button class="btn" id="btn-check">こたえあわせ</button>
@@ -159,6 +170,7 @@
       <label class="f">1. 形式</label>
       <div class="opts" id="e-type">
         <button class="opt on" data-v="choice">選択問題</button>
+        <button class="opt" data-v="multi">全て選びなさい</button>
         <button class="opt" data-v="text">記述問題</button>
       </div>
       <label class="f">2. 問題文</label>
@@ -174,8 +186,17 @@
         <input type="file" id="e-img-file" accept="image/*" class="hidden">
         <p class="note" id="e-img-msg" style="margin:6px 0 0">画像は自動で小さくして保存します。</p>
       </div>
-      <label class="f">3. 解答 <span class="hint" id="e-a-hint">（正しい選択肢）</span></label>
-      <input type="text" id="e-a" placeholder="例：多くする">
+      <div id="e-a-wrap">
+        <label class="f">3. 解答 <span class="hint" id="e-a-hint">（正しい選択肢）</span></label>
+        <input type="text" id="e-a" placeholder="例：多くする">
+      </div>
+      <div id="e-multi-wrap" class="hidden">
+        <label class="f">3. 正しい選択肢 <span class="hint">（1行に1つ・いくつでも）</span></label>
+        <textarea id="e-ma" placeholder="例：&#10;電流を大きくする&#10;コイルの巻き数を多くする"></textarea>
+        <label class="f">4. まちがいの選択肢 <span class="hint">（1行に1つ・いくつでも）</span></label>
+        <textarea id="e-mw" placeholder="例：&#10;導線を長くする&#10;鉄心をぬく"></textarea>
+        <p class="note" style="margin:4px 0 0">出題のときは、正しい選択肢とまちがいの選択肢をまぜて表示します。正しいものを全部選べたら正解です。</p>
+      </div>
       <div id="e-wrong-wrap">
         <label class="f">4. 選択肢の数</label>
         <div class="opts" id="e-n">
@@ -373,13 +394,16 @@
     let wrong = (q.wrong||[]).map(s=>s.trim()).filter(Boolean);
     if(wrong.length < need){
       // ほかの問題の答えでおぎなう（同じ範囲を優先）
-      const others = shuffle(data.questions.filter(o=>o.id!==q.id)).sort((a,b)=>((b.cat===q.cat)-(a.cat===q.cat)))
+      const others = shuffle(data.questions.filter(o=>o.id!==q.id && o.type!=="multi")).sort((a,b)=>((b.cat===q.cat)-(a.cat===q.cat)))
         .map(o=>firstAnswer(o.a)).filter(s=>s && !acceptList(q.a).includes(norm(s)));
       for(const s of others){ if(wrong.length>=need) break; if(!wrong.includes(s)) wrong.push(s); }
     }
     return shuffle([firstAnswer(q.a)].concat(wrong.slice(0,need)));
   }
+  function lines(t){ return String(t||"").split(/\n/).map(s=>s.trim()).filter(Boolean); }
+  function ansText(q){ return q.type==="multi" ? (q.answers||[]).join("、") : splitAns(q.a).join(" ／ "); }
   function qMode(q){
+    if(q.type==="multi") return "multi";
     const m = setting.mode==="asis" ? q.type : setting.mode;
     if(m==="choice"){
       const ok = (q.wrong||[]).filter(s=>s.trim()).length>=1 || data.questions.length>=4;
@@ -399,7 +423,16 @@
     $("q-result").classList.add("hidden");
     $("q-score").textContent = `${run.score}/${run.i}`;
     const mode = qMode(q);
-    if(mode==="choice"){
+    $("q-multi-tag").classList.toggle("hidden", mode!=="multi");
+    $("btn-mcheck").classList.add("hidden");
+    if(mode==="multi"){
+      $("q-input").classList.add("hidden");
+      const box = $("q-choices"); box.classList.remove("hidden");
+      const items = shuffle((q.answers||[]).map(t=>({t,ok:1})).concat((q.wrong||[]).map(t=>({t,ok:0}))));
+      box.innerHTML = items.map(c=>`<button class="choice multi" data-ok="${c.ok}">${esc(c.t)}</button>`).join("");
+      box.querySelectorAll(".choice").forEach(b => b.onclick = () => { if(!run.answered) b.classList.toggle("sel"); });
+      $("btn-mcheck").classList.remove("hidden");
+    }else if(mode==="choice"){
       $("q-input").classList.add("hidden");
       const box = $("q-choices"); box.classList.remove("hidden");
       box.innerHTML = choicesFor(q).map(c=>`<button class="choice">${esc(c)}</button>`).join("");
@@ -434,14 +467,18 @@
     }else{
       $("btn-check").disabled = true; $("q-ans").disabled = true;
     }
+    finishAnswer(ok, !!btn);
+  }
+  function finishAnswer(ok, isChoice){
+    run.answered = true;
+    const q = run.list[run.i];
     let miss = getMiss();
     if(ok){ run.score++; miss = miss.filter(id=>id!==q.id); }
     else { run.wrong.push(q); if(!miss.includes(q.id)) miss.push(q.id); }
     setMiss(miss);
     $("q-judge").textContent = ok ? "⭕ 正解！" : "❌ ざんねん…";
     $("q-judge").className = "judge " + (ok?"ok":"ng");
-    const all = splitAns(q.a);
-    $("q-correct").innerHTML = ok && btn ? "" : `答え：<b>${esc(all.join(" ／ "))}</b>`;
+    $("q-correct").innerHTML = ok && isChoice ? "" : `答え：<b>${esc(ansText(q))}</b>`;
     $("q-exp").textContent = q.exp || "";
     $("q-exp").classList.toggle("hidden", !q.exp);
     $("btn-next").textContent = run.i+1 < run.list.length ? "次へ" : "結果を見る";
@@ -449,6 +486,22 @@
     $("q-score").textContent = `${run.score}/${run.i+1}`;
     $("btn-next").focus();
   }
+  // 全て選びなさい：選んだものと正しいものがぴったり同じなら正解
+  $("btn-mcheck").onclick = () => {
+    if(run.answered) return;
+    const bs = Array.from($("q-choices").querySelectorAll(".choice"));
+    if(!bs.some(b=>b.classList.contains("sel"))){ alert("1つ以上選んでください。"); return; }
+    let ok = true;
+    bs.forEach(b=>{
+      const isOk = b.dataset.ok==="1", sel = b.classList.contains("sel");
+      b.disabled = true;
+      if(isOk && sel){ b.classList.add("ok"); b.insertAdjacentHTML("beforeend",'<span class="mark" style="color:var(--ok)">⭕</span>'); }
+      else if(isOk && !sel){ ok=false; b.classList.add("miss"); b.insertAdjacentHTML("beforeend",'<span class="mark" style="color:var(--ok)">← これも正しい</span>'); }
+      else if(!isOk && sel){ ok=false; b.classList.add("ng"); b.insertAdjacentHTML("beforeend",'<span class="mark" style="color:var(--ng)">❌</span>'); }
+    });
+    $("btn-mcheck").classList.add("hidden");
+    finishAnswer(ok, true);
+  };
   $("btn-check").onclick = () => { if($("q-ans").value.trim()) answer($("q-ans").value, null); };
   $("q-ans").addEventListener("keydown", e => { if(e.key==="Enter" && !e.isComposing){ e.preventDefault(); $("btn-check").click(); } });
   $("btn-next").onclick = () => { run.i++; if(run.i < run.list.length) renderQ(); else showResult(); };
@@ -459,7 +512,7 @@
     $("r-score").textContent = `${s} / ${n}`;
     const p = s/n;
     $("r-msg").textContent = p===1 ? "全問正解！すばらしい！🎉" : p>=0.8 ? "よくできました！あと少し！" : p>=0.5 ? "まちがえた問題を見直そう。" : "ノートを見直して、もう一度挑戦しよう！";
-    $("r-wrong").innerHTML = run.wrong.map(q=>`<li>${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(splitAns(q.a).join(" ／ "))}</span></li>`).join("");
+    $("r-wrong").innerHTML = run.wrong.map(q=>`<li>${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(ansText(q))}</span></li>`).join("");
     $("r-wrong-card").classList.toggle("hidden", run.wrong.length===0);
     $("btn-retry-wrong").classList.toggle("hidden", run.wrong.length===0);
     show("result");
@@ -474,7 +527,7 @@
   $("btn-miss-play").onclick = () => startRun(shuffle(missQs()));
   $("btn-miss-list").onclick = () => {
     const qs = missQs();
-    $("m-list").innerHTML = qs.length ? qs.map(q=>`<li>${q.cat?`<span class="tag">${esc(q.cat)}</span><br>`:""}${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(splitAns(q.a).join(" ／ "))}</span></li>`).join("") : "<li>まちがえた問題はありません。</li>";
+    $("m-list").innerHTML = qs.length ? qs.map(q=>`<li>${q.cat?`<span class="tag">${esc(q.cat)}</span><br>`:""}${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(ansText(q))}</span></li>`).join("") : "<li>まちがえた問題はありません。</li>";
     show("misslist");
   };
   $("btn-miss-reset").onclick = () => { if(confirm("まちがえ帳をリセットしますか？")){ setMiss([]); renderSetup(); } };
@@ -582,13 +635,15 @@
     eType = t;
     $("e-type").querySelectorAll(".opt").forEach(b=>b.classList.toggle("on", b.dataset.v===t));
     $("e-wrong-wrap").classList.toggle("hidden", t!=="choice");
+    $("e-multi-wrap").classList.toggle("hidden", t!=="multi");
+    $("e-a-wrap").classList.toggle("hidden", t==="multi");
     $("e-a-hint").textContent = t==="choice" ? "（正しい選択肢）" : "（別の答えも正解にするときは「/」で区切る　例：でんじしゃく/電磁石）";
   }
   $("e-type").querySelectorAll(".opt").forEach(b => b.onclick = () => setType(b.dataset.v));
 
   function clearForm(){
     editingId = null;
-    $("e-q").value=""; $("e-a").value=""; $("e-exp").value="";
+    $("e-q").value=""; $("e-a").value=""; $("e-exp").value=""; $("e-ma").value=""; $("e-mw").value="";
     document.querySelectorAll(".e-w").forEach(i=>i.value="");
     setImg("");
     $("e-err").textContent="";
@@ -601,9 +656,9 @@
     $("e-cat-list").innerHTML = categories().map(c=>`<option value="${esc(c)}">`).join("");
     $("e-count").textContent = `（${data.questions.length}問）`;
     $("e-list").innerHTML = data.questions.length ? data.questions.map((q,i)=>`
-      <li><span class="badge">${q.type==="choice"?(q.n===3?"3択":"4択"):"記述"}</span>${q.cat?`<span class="badge">${esc(q.cat)}</span>`:""}
-        <b>${i+1}.</b> ${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(q.a)}</span>
-        ${q.type==="choice" && (q.wrong||[]).filter(Boolean).length ? `<span class="note">（×${esc(q.wrong.filter(Boolean).join("、"))}）</span>` : ""}
+      <li><span class="badge">${q.type==="choice"?(q.n===3?"3択":"4択"):q.type==="multi"?"全て選ぶ":"記述"}</span>${q.cat?`<span class="badge">${esc(q.cat)}</span>`:""}
+        <b>${i+1}.</b> ${esc(q.q)}${q.img?`<img class="thumb" src="${esc(q.img)}" alt="">`:"<br>"}→ <span class="a">${esc(ansText(q))}</span>
+        ${(q.type==="choice"||q.type==="multi") && (q.wrong||[]).filter(Boolean).length ? `<span class="note">（×${esc(q.wrong.filter(Boolean).join("、"))}）</span>` : ""}
         <div style="text-align:right;margin-top:4px">
           <button class="mini" data-act="up" data-i="${i}">↑</button>
           <button class="mini" data-act="down" data-i="${i}">↓</button>
@@ -620,7 +675,8 @@
     else if(act==="edit"){
       const q = qs[i]; editingId = q.id;
       setType(q.type); $("e-q").value=q.q; $("e-a").value=q.a; $("e-cat").value=q.cat||""; $("e-exp").value=q.exp||""; setImg(q.img||""); setN(q.type==="choice" ? (q.n||4) : eN);
-      const ws = document.querySelectorAll(".e-w"); ws.forEach((w,k)=>w.value=(q.wrong||[])[k]||"");
+      const ws = document.querySelectorAll(".e-w"); ws.forEach((w,k)=>w.value=q.type==="choice"?((q.wrong||[])[k]||""):"");
+      if(q.type==="multi"){ $("e-a").value=""; $("e-ma").value=(q.answers||[]).join("\n"); $("e-mw").value=(q.wrong||[]).join("\n"); }
       $("e-form-title").textContent=`✏️ ${i+1}問目を編集`; $("e-save").textContent="変更を保存"; $("e-cancel").classList.remove("hidden");
       $("e-form").scrollIntoView({behavior:"smooth"});
       return;
@@ -631,16 +687,29 @@
     const q = $("e-q").value.trim(), a = $("e-a").value.trim();
     const wrong = Array.from(document.querySelectorAll(".e-w")).slice(0, eN-1).map(i=>i.value.trim()).filter(Boolean);
     if(!q){ $("e-err").textContent="問題文を入力してください。"; return; }
+    if(eType==="multi"){
+      const answers = lines($("e-ma").value), mw = lines($("e-mw").value);
+      if(!answers.length){ $("e-err").textContent="正しい選択肢を1つ以上入力してください。"; return; }
+      if(answers.length + mw.length < 2){ $("e-err").textContent="選択肢が2つ以上になるように入力してください。"; return; }
+      const dup = answers.find(x=>mw.map(norm).includes(norm(x)));
+      if(dup){ $("e-err").textContent=`「${dup}」が正しい選択肢とまちがいの選択肢の両方に入っています。`; return; }
+      const it = { id: editingId || uid(), type:"multi", cat:$("e-cat").value.trim(), q, a: answers.join("、"), answers, wrong: mw, exp:$("e-exp").value.trim() };
+      if(eImg) it.img = eImg;
+      return commitItem(it);
+    }
     if(!a){ $("e-err").textContent="解答を入力してください。"; return; }
     if(eType==="choice" && wrong.length===0){ $("e-err").textContent=`まちがいの選択肢を1つ以上入力してください（${eN-1}つ入れると${eN}択になります）。`; return; }
     const item = { id: editingId || uid(), type:eType, cat:$("e-cat").value.trim(), q, a, wrong: eType==="choice"?wrong:[], n: eType==="choice"?eN:undefined, exp:$("e-exp").value.trim() };
     if(eImg) item.img = eImg;
+    commitItem(item);
+  };
+  function commitItem(item){
     if(editingId){ const k = data.questions.findIndex(x=>x.id===editingId); data.questions[k]=item; }
     else data.questions.push(item);
     const keepCat = item.cat;
     saveDraft(); clearForm(); $("e-cat").value = keepCat; renderEditor();
     $("e-q").focus();
-  };
+  }
   $("e-cancel").onclick = () => { clearForm(); };
   ["e-title","e-crumb","e-lead"].forEach(id => $(id).addEventListener("input", () => {
     data.title=$("e-title").value; data.crumb=$("e-crumb").value; data.lead=$("e-lead").value; saveDraft(); renderHeader();
