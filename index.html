@@ -78,7 +78,7 @@
   <!-- ===== 設定画面 ===== -->
   <section id="scr-setup">
     <div class="card">
-      <h2>① 範囲をえらぶ</h2>
+      <h2>① 範囲をえらぶ <span class="hint">いくつでもえらべます</span></h2>
       <div class="opts" id="opt-range"></div>
     </div>
     <div class="card">
@@ -1391,7 +1391,7 @@
   }
 
   // ===== 設定画面 =====
-  const setting = { range:"__all", count:"10", mode:"asis" };
+  const setting = { ranges:[], count:"10", mode:"asis" }; // ranges が空のときは「ぜんぶ」
   function categories(){
     const seen=[]; data.questions.forEach(q=>{ const c=(q.cat||"").trim(); if(c && !seen.includes(c)) seen.push(c); }); return seen;
   }
@@ -1399,12 +1399,26 @@
     el.innerHTML = items.map(([v,l]) => `<button class="opt${setting[key]===v?" on":""}" data-v="${esc(v)}">${esc(l)}</button>`).join("");
     el.querySelectorAll(".opt").forEach(b => b.onclick = () => { setting[key]=b.dataset.v; renderSetup(); });
   }
+  // 範囲は複数えらべる（押すたびにオン・オフ）。「ぜんぶ」を押すと選択を消して全部にもどす
+  function rangeButtons(el, cats, countIn){
+    const all = setting.ranges.length===0;
+    el.innerHTML = `<button class="opt${all?" on":""}" data-v="__all">ぜんぶ（${data.questions.length}問）</button>`
+      + cats.map(c => `<button class="opt${setting.ranges.includes(c)?" on":""}" data-v="${esc(c)}">${esc(c)}（${countIn(c)}問）</button>`).join("");
+    el.querySelectorAll(".opt").forEach(b => b.onclick = () => {
+      const v = b.dataset.v;
+      if(v==="__all") setting.ranges = [];
+      else if(setting.ranges.includes(v)) setting.ranges = setting.ranges.filter(c=>c!==v);
+      else setting.ranges = setting.ranges.concat([v]);
+      if(setting.ranges.length===cats.length) setting.ranges = []; // 全部えらんだら「ぜんぶ」と同じ
+      renderSetup();
+    });
+  }
   function renderSetup(){
     renderHeader();
     const cats = categories();
-    if(setting.range!=="__all" && !cats.includes(setting.range)) setting.range="__all";
+    setting.ranges = setting.ranges.filter(c => cats.includes(c));
     const countIn = c => data.questions.filter(q=>(q.cat||"").trim()===c).length;
-    optButtons($("opt-range"), [["__all",`ぜんぶ（${data.questions.length}問）`]].concat(cats.map(c=>[c,`${c}（${countIn(c)}問）`])), "range");
+    rangeButtons($("opt-range"), cats, countIn);
     optButtons($("opt-count"), [["10","10問"],["20","20問"],["all","全問"]], "count");
     optButtons($("opt-mode"), [["asis","問題のとおり"],["choice","選択式"],["text","記述式（入力）"]], "mode");
     const none = data.questions.length===0;
@@ -1419,7 +1433,7 @@
   let run = null; // {list, i, score, wrong, mode, answered}
   function pool(){
     let qs = data.questions;
-    if(setting.range!=="__all") qs = qs.filter(q=>(q.cat||"").trim()===setting.range);
+    if(setting.ranges.length) qs = qs.filter(q=>setting.ranges.includes((q.cat||"").trim()));
     qs = shuffle(qs);
     if(setting.count!=="all") qs = qs.slice(0, Number(setting.count));
     return qs;
